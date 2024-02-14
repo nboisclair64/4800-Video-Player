@@ -186,6 +186,8 @@ static int decode_packet(AVCodecContext *dec, const AVPacket *pkt)
     }
     return 0;
 }
+
+
 static int open_codec_context(int *stream_idx,
                               AVCodecContext **dec_ctx, AVFormatContext *fmt_ctx, enum AVMediaType type)
 {
