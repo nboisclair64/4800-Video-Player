@@ -396,7 +396,7 @@ activate(GtkApplication *app,
 int main(int argc, char *argv[])
 {
     //Ensures the correct arguments are passed into command line
-    if (argc != 4)
+    if (argc != 3)
     {
         fprintf(stderr, "usage: %s  input_file video_output_file(without file extension) frame_num\n"
                         "API example program to show how to read frames from an input file.\n"
