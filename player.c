@@ -262,17 +262,6 @@ int decodeFrame()
     {
 
         video_stream = fmt_ctx->streams[video_stream_idx];
-        snprintf(src_filename, sizeof(src_filename) + 4, "%s.ppm", video_dst_filename);
-        //snprintf(video_dst_filename, 100, "%s.ppm", video_dst_filename);
-        //Create the ppm file
-        video_dst_file = fopen(src_filename, "wb");
-        //Error upon creating file
-        if (!video_dst_file)
-        {
-            fprintf(stderr, "Could not open destination file %s\n", video_dst_filename);
-            ret = 1;
-            goto end;
-        }
         
         /* allocate image where the decoded image will be put */
         width = video_dec_ctx->width;
