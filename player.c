@@ -7,9 +7,14 @@
 #include <cairo.h>
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
+#include <pthread.h>
 
+GtkWidget * darea;
 pthread_t readThread;
 pthread_t writeThread;
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t condition = PTHREAD_COND_INITIALIZER;
 typedef struct
 {
     int width;
@@ -44,7 +49,7 @@ static int video_frame_count = 0;
 static int audio_frame_count = 0;
 static int frameRate;
 
-Frame arrayOfFrames[100]; //Optimize array, potentially clear already shown frames
+Frame arrayOfFrames[10000]; //Optimize array, potentially clear already shown frames
 int readOccurence = 1;
 int readIndex=0;
 int writeIndex = 0;
@@ -138,7 +143,6 @@ void draw_images(GtkDrawingArea *area, cairo_t *cr, int width, int height, gpoin
             cairo_fill(cr);
         }
     }
-    writeIndex++;
 }
 static int decode_packet(AVCodecContext *dec, const AVPacket *pkt)
 {
@@ -169,7 +173,7 @@ static int decode_packet(AVCodecContext *dec, const AVPacket *pkt)
         }
 
         // write the frame data to output file only if its the one specified
-        if (frameRate*(readIndex-1)<=dec->frame_num && dec->frame_num<frameRate*readIndex)
+        if (frameRate*(readOccurence-1)<=dec->frame_num && dec->frame_num<frameRate*readOccurence)
         {
             printf("Frame Num: %lld\n", dec->frame_num);
             ret = output_video_frame(frame);
@@ -180,7 +184,6 @@ static int decode_packet(AVCodecContext *dec, const AVPacket *pkt)
         if (ret < 0)
             return ret;
     }
-    readOccurence++;
     return 0;
 }
 static int open_codec_context(int *stream_idx,
@@ -335,28 +338,39 @@ end:
 
     return ret < 0;
 }
-static void *readFunction(){
-    //Lock
-    //Read in the next 'x' frames, x is fps
-    //unlock
-    //Signal write
+static void *readFunction()
+{
+    //Must loop these
+    pthread_mutex_lock(&mutex);
+    decodeFrame();
+    readOccurence++;
+    pthread_cond_signal(&condition); // Signal write function
+    pthread_mutex_unlock(&mutex);
+    return NULL;
 }
+
 static void *writeFunction()
 {
-    //Lock
-    //for loop 'x' iterations, x is fps
-    //draw current writeIndex frame
-    //sleep for a second
-    //Increment writeIndex
-    //unlock
-    //Signal read
+    //Must loop these
+        pthread_mutex_lock(&mutex);
+        pthread_cond_wait(&condition, &mutex); // Wait for signal from read function
+        for (int i = 0; i < frameRate; i++)
+        {
+            // draw current writeIndex frame
+            gtk_drawing_area_set_draw_func(GTK_DRAWING_AREA(darea), draw_images, NULL, NULL);
+            g_print("Writing frame: %d\n", writeIndex);
+            writeIndex++;
+        }
+        pthread_mutex_unlock(&mutex);
+    
+    return NULL;
 }
 
 static void
 activate(GtkApplication *app,
          gpointer user_data)
 {
-    GtkWidget *darea = gtk_drawing_area_new();
+    darea = gtk_drawing_area_new();
 
     GtkWidget *box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
     GtkWidget *menuBox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
@@ -379,7 +393,13 @@ activate(GtkApplication *app,
     gtk_window_set_child(GTK_WINDOW(window), box);
 
     gtk_drawing_area_set_draw_func(GTK_DRAWING_AREA(darea), draw_images, NULL, NULL);
+    if (pthread_create(&writeThread, NULL, writeFunction, NULL) != 0)
+    {
+        printf("Error creating write thread\n");
+    }
     pthread_create(&readThread, NULL, readFunction, NULL);
+
+    
     gtk_window_present(GTK_WINDOW(window));
 }
 int main(int argc, char *argv[])
@@ -397,8 +417,6 @@ int main(int argc, char *argv[])
     }
     src_filename = argv[1];
     frameRate = atoi(argv[2]);
-    //Calls function to decode and save the frame
-    decodeFrame();
     //Resets argc to ensure GTK does not throw any errors
     argc = 1;
     // Create a new application
