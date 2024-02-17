@@ -6,21 +6,25 @@
 #include <gtk/gtk.h>
 #include <cairo.h>
 #include <stdio.h>
+#include <time.h>
 #include <string.h>
 #include <unistd.h>
 #include <pthread.h>
+#define MAX_BUFFER 90
 
 GtkWidget * darea;
 pthread_t readThread;
 pthread_t writeThread;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t condition = PTHREAD_COND_INITIALIZER;
+pthread_cond_t condition2 = PTHREAD_COND_INITIALIZER;
 typedef struct
 {
     int width;
     int height;
     int maxval;
     unsigned char *pixels;
+    int isEmpty;
 } Frame;
 static AVFormatContext *fmt_ctx = NULL;
 static AVCodecContext *video_dec_ctx = NULL, *audio_dec_ctx;
@@ -49,10 +53,12 @@ static int video_frame_count = 0;
 static int audio_frame_count = 0;
 static int frameRate;
 
-Frame arrayOfFrames[10000]; //Optimize array, potentially clear already shown frames
-int readOccurence = 1;
-int readIndex=0;
+Frame arrayOfFrames[MAX_BUFFER]; //Optimize array, potentially clear already shown frames
+int lastFrameRead = 0;
+int readIndex=1;
+int readLap = 1;
 int writeIndex = 0;
+int writeLap=1;
 static void playVideo()
 {
    
@@ -117,8 +123,9 @@ static int output_video_frame(AVFrame *frame)
 
         }
     }
-    Frame currentFrame = {frame->width,frame->height,255,pixels};
-    arrayOfFrames[readIndex] = currentFrame;
+    Frame currentFrame = {frame->width,frame->height,255,pixels,1};
+    printf("Read Index: %d\n",readIndex-1);
+    arrayOfFrames[readIndex-1] = currentFrame;
     return 0;
 }
 void draw_images(GtkDrawingArea *area, cairo_t *cr, int width, int height, gpointer user_data)
@@ -157,9 +164,10 @@ static int decode_packet(AVCodecContext *dec, const AVPacket *pkt)
         return ret;
     }
 
-    // get all the available frames from the decoder
-    while (ret >= 0)
+    // get the next available frames from the decoder
+    if (ret >= 0)
     {
+    
         ret = avcodec_receive_frame(dec, frame);
         if (ret < 0)
         {
@@ -173,12 +181,18 @@ static int decode_packet(AVCodecContext *dec, const AVPacket *pkt)
         }
 
         // write the frame data to output file only if its the one specified
-        if (frameRate*(readOccurence-1)<=dec->frame_num && dec->frame_num<frameRate*readOccurence)
-        {
-            printf("Frame Num: %lld\n", dec->frame_num);
             ret = output_video_frame(frame);
             readIndex++;
-        }
+            if (readIndex == MAX_BUFFER)
+            {
+                //lastFrameRead = dec->frame_num;
+                printf("Done Reading\n");
+                readIndex = 1;
+                return 1;
+            }
+        
+            
+        
 
         av_frame_unref(frame);
         if (ret < 0)
@@ -246,21 +260,20 @@ static int open_codec_context(int *stream_idx,
 int decodeFrame()
 {
     int ret = 0;
-
+    printf("test\n");
     /* open input file, and allocate format context */
     if (avformat_open_input(&fmt_ctx, src_filename, NULL, NULL) < 0)
     {
+        //Segmentation fault coming from here!!!
         fprintf(stderr, "Could not open source file %s\n", src_filename);
         exit(1);
     }
-
     /* retrieve stream information */
     if (avformat_find_stream_info(fmt_ctx, NULL) < 0)
     {
         fprintf(stderr, "Could not find stream information\n");
         exit(1);
     }
-
     if (open_codec_context(&video_stream_idx, &video_dec_ctx, fmt_ctx, AVMEDIA_TYPE_VIDEO) >= 0)
     {
 
@@ -279,7 +292,6 @@ int decodeFrame()
         }
         video_dst_bufsize = ret;
     }
-
     /* dump input information to stderr */
     av_dump_format(fmt_ctx, 0, src_filename, 0);
 
@@ -305,20 +317,28 @@ int decodeFrame()
         ret = AVERROR(ENOMEM);
         goto end;
     }
-
-    /* read frames from the file */
-    while (av_read_frame(fmt_ctx, pkt) >= 0)
+    
+    int status = av_read_frame(fmt_ctx, pkt);
+    if (status>=0){
+    // check if the packet belongs to a stream we are interested in, otherwise
+    // skip it
+    if (pkt->stream_index == video_stream_idx)
     {
-        // check if the packet belongs to a stream we are interested in, otherwise
-        // skip it
-        if (pkt->stream_index == video_stream_idx)
+        ret = decode_packet(video_dec_ctx, pkt);
+        if (ret == 1)
         {
-            ret = decode_packet(video_dec_ctx, pkt);
+            return 1;
         }
-        av_packet_unref(pkt);
-        if (ret < 0)
-            break;
     }
+    av_packet_unref(pkt);
+    if (ret < 0)
+        return -1;
+    }
+        else{
+            return -1;
+        }
+        
+    
 
     /* flush the decoders */
     if (video_dec_ctx)
@@ -338,31 +358,89 @@ end:
 
     return ret < 0;
 }
+static bool isFrameBufferFull()
+{
+    for (int i = 0; i < MAX_BUFFER; i++)
+    {
+        if (arrayOfFrames[i].isEmpty == 0)
+        {
+            return FALSE;
+        }
+    }
+    return TRUE;
+}
+static bool isFrameBufferEmpty()
+{
+    for (int i = 0; i < MAX_BUFFER; i++)
+    {
+        if (arrayOfFrames[i].isEmpty == 1)
+        {
+            return FALSE;
+        }
+    }
+    return TRUE;
+}
 static void *readFunction()
 {
-    //Must loop these
-    pthread_mutex_lock(&mutex);
-    decodeFrame();
-    readOccurence++;
-    pthread_cond_signal(&condition); // Signal write function
-    pthread_mutex_unlock(&mutex);
+    printf("Read Started\n");
+    while (1)
+    {   
+        pthread_mutex_lock(&mutex);
+        //printf("Locked In Read\n");
+        while(isFrameBufferFull())
+        {
+            printf("Buffer full\n");
+            pthread_cond_wait(&condition2, &mutex); // Wait for condition to be empty
+        }
+        if(readLap==writeLap && readIndex>writeIndex){
+            printf("Decoding\n");
+            int status = decodeFrame(); //Need to get this to read one frame
+            printf("Done Decoding\n");
+        }
+        else if(readLap>writeLap && readIndex<writeIndex){
+            printf("Decoding\n");
+            int status = decodeFrame(); //Need to get this to read one frame
+            printf("Done Decoding\n");
+        }
+        
+        pthread_cond_signal(&condition2); // Signal write function
+        //printf("Unlocked in Read\n");
+        pthread_mutex_unlock(&mutex); //Unlock
+        
+    }
     return NULL;
 }
-
 static void *writeFunction()
 {
-    //Must loop these
+    struct timespec ts;
+    ts.tv_sec = 100 / 1000;
+    ts.tv_nsec = (100 % 1000) * 1000000;
+    printf("Write Started\n");
+    while (1)
+    {
+        nanosleep(&ts, &ts);
         pthread_mutex_lock(&mutex);
-        pthread_cond_wait(&condition, &mutex); // Wait for signal from read function
-        for (int i = 0; i < frameRate; i++)
+        //If full wait
+        if (isFrameBufferEmpty())
         {
-            // draw current writeIndex frame
-            gtk_drawing_area_set_draw_func(GTK_DRAWING_AREA(darea), draw_images, NULL, NULL);
-            g_print("Writing frame: %d\n", writeIndex);
-            writeIndex++;
+            printf("Buffer Empty\n");
+            pthread_cond_wait(&condition2, &mutex);
         }
+        //pthread_cond_wait(&condition, &mutex); // Wait for signal from read function
+        printf("Back to Writing\n");
+        //Write Frame
+        printf("Drawing frame: %d\n",writeIndex);
+        gtk_drawing_area_set_draw_func(GTK_DRAWING_AREA(darea), draw_images, NULL, NULL);
+        arrayOfFrames[writeIndex].isEmpty = 0;
+        writeIndex++;
+        if(writeIndex==MAX_BUFFER){
+            writeLap++;
+            writeIndex=0;
+        }
+        //Signal Read
+        pthread_cond_signal(&condition2); //Signal Read
         pthread_mutex_unlock(&mutex);
-    
+    }
     return NULL;
 }
 

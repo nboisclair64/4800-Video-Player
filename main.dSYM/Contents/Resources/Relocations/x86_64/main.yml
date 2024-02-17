@@ -1,0 +1,47 @@
+---
+triple:          'x86_64-apple-darwin'
+binary-path:     main
+relocations:
+  - { offsetInCU: 0x26, offset: 0x26, size: 0x8, addend: 0x0, symName: _draw_images, symObjAddr: 0x0, symBinAddr: 0x100002670, symSize: 0x150 }
+  - { offsetInCU: 0x3F, offset: 0x3F, size: 0x8, addend: 0x0, symName: _mutex, symObjAddr: 0x1300, symBinAddr: 0x100008000, symSize: 0x0 }
+  - { offsetInCU: 0xAC, offset: 0xAC, size: 0x8, addend: 0x0, symName: _condition, symObjAddr: 0x1340, symBinAddr: 0x100008040, symSize: 0x0 }
+  - { offsetInCU: 0x104, offset: 0x104, size: 0x8, addend: 0x0, symName: _condition2, symObjAddr: 0x1370, symBinAddr: 0x100008070, symSize: 0x0 }
+  - { offsetInCU: 0x119, offset: 0x119, size: 0x8, addend: 0x0, symName: _src_filename, symObjAddr: 0xFE18, symBinAddr: 0x1000080B0, symSize: 0x0 }
+  - { offsetInCU: 0x133, offset: 0x133, size: 0x8, addend: 0x0, symName: _lastFrameRead, symObjAddr: 0xFE20, symBinAddr: 0x1000080B8, symSize: 0x0 }
+  - { offsetInCU: 0x14F, offset: 0x14F, size: 0x8, addend: 0x0, symName: _readIndex, symObjAddr: 0x13A0, symBinAddr: 0x1000080A0, symSize: 0x0 }
+  - { offsetInCU: 0x164, offset: 0x164, size: 0x8, addend: 0x0, symName: _writeIndex, symObjAddr: 0xFE24, symBinAddr: 0x1000080BC, symSize: 0x0 }
+  - { offsetInCU: 0x179, offset: 0x179, size: 0x8, addend: 0x0, symName: _darea, symBinAddr: 0x100008C00, symSize: 0x0 }
+  - { offsetInCU: 0x2A0, offset: 0x2A0, size: 0x8, addend: 0x0, symName: _readThread, symBinAddr: 0x100008C08, symSize: 0x0 }
+  - { offsetInCU: 0x34A, offset: 0x34A, size: 0x8, addend: 0x0, symName: _writeThread, symBinAddr: 0x100008C10, symSize: 0x0 }
+  - { offsetInCU: 0x35F, offset: 0x35F, size: 0x8, addend: 0x0, symName: _audio_dec_ctx, symObjAddr: 0xFEA8, symBinAddr: 0x100008C98, symSize: 0x0 }
+  - { offsetInCU: 0x3254, offset: 0x3254, size: 0x8, addend: 0x0, symName: _width, symObjAddr: 0xFE48, symBinAddr: 0x100008C38, symSize: 0x0 }
+  - { offsetInCU: 0x3269, offset: 0x3269, size: 0x8, addend: 0x0, symName: _height, symObjAddr: 0xFE4C, symBinAddr: 0x100008C3C, symSize: 0x0 }
+  - { offsetInCU: 0x327E, offset: 0x327E, size: 0x8, addend: 0x0, symName: _pix_fmt, symObjAddr: 0xFE50, symBinAddr: 0x100008C40, symSize: 0x0 }
+  - { offsetInCU: 0x3293, offset: 0x3293, size: 0x8, addend: 0x0, symName: _video_dst_linesize, symObjAddr: 0xFE80, symBinAddr: 0x100008C70, symSize: 0x0 }
+  - { offsetInCU: 0x32B4, offset: 0x32B4, size: 0x8, addend: 0x0, symName: _video_dst_bufsize, symObjAddr: 0xFE90, symBinAddr: 0x100008C80, symSize: 0x0 }
+  - { offsetInCU: 0x32C9, offset: 0x32C9, size: 0x8, addend: 0x0, symName: _frameRate, symObjAddr: 0xFEC0, symBinAddr: 0x100008CB0, symSize: 0x0 }
+  - { offsetInCU: 0x32DE, offset: 0x32DE, size: 0x8, addend: 0x0, symName: _arrayOfFrames, symBinAddr: 0x1000080C0, symSize: 0x0 }
+  - { offsetInCU: 0x3350, offset: 0x3350, size: 0x8, addend: 0x0, symName: _fmt_ctx, symObjAddr: 0xFE30, symBinAddr: 0x100008C20, symSize: 0x0 }
+  - { offsetInCU: 0x4184, offset: 0x4184, size: 0x8, addend: 0x0, symName: _video_stream_idx, symObjAddr: 0x13A4, symBinAddr: 0x1000080A4, symSize: 0x0 }
+  - { offsetInCU: 0x4199, offset: 0x4199, size: 0x8, addend: 0x0, symName: _video_dec_ctx, symObjAddr: 0xFE38, symBinAddr: 0x100008C28, symSize: 0x0 }
+  - { offsetInCU: 0x41AE, offset: 0x41AE, size: 0x8, addend: 0x0, symName: _video_stream, symObjAddr: 0xFE40, symBinAddr: 0x100008C30, symSize: 0x0 }
+  - { offsetInCU: 0x41C3, offset: 0x41C3, size: 0x8, addend: 0x0, symName: _video_dst_data, symObjAddr: 0xFE60, symBinAddr: 0x100008C50, symSize: 0x0 }
+  - { offsetInCU: 0x41E4, offset: 0x41E4, size: 0x8, addend: 0x0, symName: _frame, symObjAddr: 0xFE98, symBinAddr: 0x100008C88, symSize: 0x0 }
+  - { offsetInCU: 0x41F9, offset: 0x41F9, size: 0x8, addend: 0x0, symName: _pkt, symObjAddr: 0xFEA0, symBinAddr: 0x100008C90, symSize: 0x0 }
+  - { offsetInCU: 0x420E, offset: 0x420E, size: 0x8, addend: 0x0, symName: _video_dst_file, symObjAddr: 0xFEB0, symBinAddr: 0x100008CA0, symSize: 0x0 }
+  - { offsetInCU: 0x43E5, offset: 0x43E5, size: 0x8, addend: 0x0, symName: _audio_dst_file, symObjAddr: 0xFEB8, symBinAddr: 0x100008CA8, symSize: 0x0 }
+  - { offsetInCU: 0x445F, offset: 0x445F, size: 0x8, addend: 0x0, symName: _draw_images, symObjAddr: 0x0, symBinAddr: 0x100002670, symSize: 0x150 }
+  - { offsetInCU: 0x454D, offset: 0x454D, size: 0x8, addend: 0x0, symName: _decodeFrame, symObjAddr: 0x150, symBinAddr: 0x1000027C0, symSize: 0x370 }
+  - { offsetInCU: 0x4587, offset: 0x4587, size: 0x8, addend: 0x0, symName: _open_codec_context, symObjAddr: 0x4C0, symBinAddr: 0x100002B30, symSize: 0x220 }
+  - { offsetInCU: 0x4611, offset: 0x4611, size: 0x8, addend: 0x0, symName: _decode_packet, symObjAddr: 0x6E0, symBinAddr: 0x100002D50, symSize: 0x280 }
+  - { offsetInCU: 0x4658, offset: 0x4658, size: 0x8, addend: 0x0, symName: _main, symObjAddr: 0x960, symBinAddr: 0x100002FD0, symSize: 0xE0 }
+  - { offsetInCU: 0x46AF, offset: 0x46AF, size: 0x8, addend: 0x0, symName: _activate, symObjAddr: 0xA40, symBinAddr: 0x1000030B0, symSize: 0x260 }
+  - { offsetInCU: 0x472F, offset: 0x472F, size: 0x8, addend: 0x0, symName: _av_make_error_string, symObjAddr: 0xCA0, symBinAddr: 0x100003310, symSize: 0x30 }
+  - { offsetInCU: 0x4773, offset: 0x4773, size: 0x8, addend: 0x0, symName: _output_video_frame, symObjAddr: 0xCD0, symBinAddr: 0x100003340, symSize: 0x380 }
+  - { offsetInCU: 0x488A, offset: 0x488A, size: 0x8, addend: 0x0, symName: _av_image_copy2, symObjAddr: 0x1050, symBinAddr: 0x1000036C0, symSize: 0x50 }
+  - { offsetInCU: 0x4902, offset: 0x4902, size: 0x8, addend: 0x0, symName: _pauseVideo, symObjAddr: 0x10A0, symBinAddr: 0x100003710, symSize: 0x10 }
+  - { offsetInCU: 0x4917, offset: 0x4917, size: 0x8, addend: 0x0, symName: _playVideo, symObjAddr: 0x10B0, symBinAddr: 0x100003720, symSize: 0x10 }
+  - { offsetInCU: 0x492C, offset: 0x492C, size: 0x8, addend: 0x0, symName: _writeFunction, symObjAddr: 0x10C0, symBinAddr: 0x100003730, symSize: 0x100 }
+  - { offsetInCU: 0x4964, offset: 0x4964, size: 0x8, addend: 0x0, symName: _isFrameBufferEmpty, symObjAddr: 0x11C0, symBinAddr: 0x100003830, symSize: 0x60 }
+  - { offsetInCU: 0x499C, offset: 0x499C, size: 0x8, addend: 0x0, symName: _readFunction, symObjAddr: 0x1220, symBinAddr: 0x100003890, symSize: 0xAB }
+...
