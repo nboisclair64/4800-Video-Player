@@ -69,6 +69,7 @@ static void pauseVideo()
 }
 static int output_video_frame(AVFrame *frame)
 {
+
     if (frame->width != width || frame->height != height ||
         frame->format != pix_fmt)
     {
@@ -121,7 +122,7 @@ static int output_video_frame(AVFrame *frame)
             pixels[offset+1] = G;
             pixels[offset + 2] = B;
 
-        }
+        }    
     }
     Frame currentFrame = {frame->width,frame->height,255,pixels,1};
     printf("Read Index: %d\n",readIndex-1);
@@ -186,6 +187,7 @@ static int decode_packet(AVCodecContext *dec, const AVPacket *pkt)
             if (readIndex == MAX_BUFFER)
             {
                 //lastFrameRead = dec->frame_num;
+                
                 printf("Done Reading\n");
                 readIndex = 1;
                 return 1;
@@ -320,10 +322,9 @@ int decodeFrame()
         goto end;
     }
     
-    int status = av_read_frame(fmt_ctx, pkt);
-    if (status>=0){
-    // check if the packet belongs to a stream we are interested in, otherwise
-    // skip it
+
+    check if the packet belongs to a stream we are interested in, otherwise
+    skip it
     if (pkt->stream_index == video_stream_idx)
     {
         ret = decode_packet(video_dec_ctx, pkt);
@@ -335,10 +336,9 @@ int decodeFrame()
     av_packet_unref(pkt);
     if (ret < 0)
         return -1;
-    }
-        else{
-            return -1;
-        }
+
+    
+    
         
     
 
@@ -360,6 +360,7 @@ end:
 
     return ret < 0;
 }
+
 static bool isFrameBufferFull()
 {
     for (int i = 0; i < MAX_BUFFER; i++)
@@ -381,6 +382,21 @@ static bool isFrameBufferEmpty()
         }
     }
     return TRUE;
+}
+
+void resetBuffer() {
+    // reset variables
+    writeIndex = 0;
+    readIndex = 1;
+    writeLap = 1;
+    readLap = 1;
+
+
+    for (int i = 0; i < MAX_BUFFER; i++) {
+        
+        arrayOfFrames[i].isEmpty = 0;
+
+    }
 }
 static void *readFunction()
 {
@@ -426,6 +442,7 @@ static void *writeFunction()
         if (isFrameBufferEmpty())
         {
             printf("Buffer Empty\n");
+
             pthread_cond_wait(&condition2, &mutex);
         }
         //pthread_cond_wait(&condition, &mutex); // Wait for signal from read function
