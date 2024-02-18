@@ -259,28 +259,41 @@ static int open_codec_context(int *stream_idx,
 
     return 0;
 }
-int decodeFrame()
+int initialize()
 {
     int ret = 0;
-    printf("test\n");
-    /* open input file, and allocate format context */
+    // Open input file and allocate format context
     if (avformat_open_input(&fmt_ctx, src_filename, NULL, NULL) < 0)
     {
-        //Segmentation fault coming from here!!!
         fprintf(stderr, "Could not open source file %s\n", src_filename);
-        exit(1);
+        return -1;
     }
-    /* retrieve stream information */
+
+    // Retrieve stream information
     if (avformat_find_stream_info(fmt_ctx, NULL) < 0)
     {
         fprintf(stderr, "Could not find stream information\n");
-        exit(1);
+        return -1;
     }
-    if (open_codec_context(&video_stream_idx, &video_dec_ctx, fmt_ctx, AVMEDIA_TYPE_VIDEO) >= 0)
-    {
 
+    // Find the video stream
+    video_stream_idx = av_find_best_stream(fmt_ctx, AVMEDIA_TYPE_VIDEO, -1, -1, NULL, 0);
+    if (video_stream_idx < 0)
+    {
+        fprintf(stderr, "Could not find video stream in the input\n");
+        return -1;
+    }
+    video_stream = fmt_ctx->streams[video_stream_idx];
+
+    // Open codec context
+    if (open_codec_context(&video_stream_idx, &video_dec_ctx, fmt_ctx, AVMEDIA_TYPE_VIDEO) <0)
+    {
+        fprintf(stderr, "Could not open codec context\n");
+        return -1;
+    }
+    else{
         video_stream = fmt_ctx->streams[video_stream_idx];
-        
+
         /* allocate image where the decoded image will be put */
         width = video_dec_ctx->width;
         height = video_dec_ctx->height;
@@ -290,75 +303,58 @@ int decodeFrame()
         if (ret < 0)
         {
             fprintf(stderr, "Could not allocate raw video buffer\n");
-            goto end;
         }
         video_dst_bufsize = ret;
     }
-    /* dump input information to stderr */
-    av_dump_format(fmt_ctx, 0, src_filename, 0);
 
-    if (!video_stream)
-    {
-        fprintf(stderr, "Could not find video stream in the input, aborting\n");
-        ret = 1;
-        goto end;
-    }
-    //Allocates memory for the frame
+    // Allocate frame
     frame = av_frame_alloc();
     if (!frame)
     {
         fprintf(stderr, "Could not allocate frame\n");
-        ret = AVERROR(ENOMEM);
-        goto end;
+        return -1;
     }
 
+    // Allocate packet
     pkt = av_packet_alloc();
     if (!pkt)
     {
         fprintf(stderr, "Could not allocate packet\n");
-        ret = AVERROR(ENOMEM);
-        goto end;
-    }
-    
-    int status = av_read_frame(fmt_ctx, pkt);
-    if (status>=0){
-    // check if the packet belongs to a stream we are interested in, otherwise
-    // skip it
-    if (pkt->stream_index == video_stream_idx)
-    {
-        ret = decode_packet(video_dec_ctx, pkt);
-        if (ret == 1)
-        {
-            return 1;
-        }
-    }
-    av_packet_unref(pkt);
-    if (ret < 0)
         return -1;
     }
-        else{
-            return -1;
+
+    return 0;
+}
+
+int decodeFrame()
+{
+    int ret;
+
+    // Read frame from input
+    ret = av_read_frame(fmt_ctx, pkt);
+    if (ret < 0)
+    {
+        // End of file or error
+        return ret;
+    }
+
+    // Check if the packet belongs to the video stream
+    if (pkt->stream_index == video_stream_idx)
+    {
+        // Decode the packet
+        printf("Decoding Pkt\n");
+        ret = decode_packet(video_dec_ctx, pkt);
+        if (ret < 0)
+        {
+            fprintf(stderr, "Error decoding packet\n");
+            return ret;
         }
-        
-    
+    }
 
-    /* flush the decoders */
-    if (video_dec_ctx)
-        decode_packet(video_dec_ctx, NULL);
+    // Free the packet
+    av_packet_unref(pkt);
 
-end:
-    avcodec_free_context(&video_dec_ctx);
-    avcodec_free_context(&audio_dec_ctx);
-    avformat_close_input(&fmt_ctx);
-    if (video_dst_file)
-        fclose(video_dst_file);
-    if (audio_dst_file)
-        fclose(audio_dst_file);
-    av_packet_free(&pkt);
-    av_frame_free(&frame);
-    av_free(video_dst_data[0]);
-
-    return ret < 0;
+    return 0;
 }
 static bool isFrameBufferFull()
 {
@@ -387,20 +383,21 @@ static void *readFunction()
     printf("Read Started\n");
     while (1)
     {   
+        
         pthread_mutex_lock(&mutex);
-        //printf("Locked In Read\n");
+        printf("Locked In Read\n");
         while(isFrameBufferFull())
         {
             printf("Buffer full\n");
             pthread_cond_wait(&condition2, &mutex); // Wait for condition to be empty
         }
         if(readLap==writeLap && readIndex>writeIndex){
-            printf("Decoding\n");
+            printf("Decoding Evem\n");
             int status = decodeFrame(); //Need to get this to read one frame
             printf("Done Decoding\n");
         }
         else if(readLap>writeLap && readIndex<writeIndex){
-            printf("Decoding\n");
+            printf("Decoding Odd\n");
             int status = decodeFrame(); //Need to get this to read one frame
             printf("Done Decoding\n");
         }
@@ -420,6 +417,8 @@ static void *writeFunction()
     printf("Write Started\n");
     while (1)
     {
+        printf("Writing Loop\n");
+        //sleep(1);
         nanosleep(&ts, &ts);
         pthread_mutex_lock(&mutex);
         //If full wait
@@ -429,7 +428,6 @@ static void *writeFunction()
             pthread_cond_wait(&condition2, &mutex);
         }
         //pthread_cond_wait(&condition, &mutex); // Wait for signal from read function
-        printf("Back to Writing\n");
         //Write Frame
         printf("Drawing frame: %d\n",writeIndex);
         gtk_drawing_area_set_draw_func(GTK_DRAWING_AREA(darea), draw_images, NULL, NULL);
@@ -499,6 +497,12 @@ int main(int argc, char *argv[])
     frameRate = atoi(argv[2]);
     //Resets argc to ensure GTK does not throw any errors
     argc = 1;
+    // Initialize format context, open input file, etc.
+    if (initialize() < 0)
+    {
+        fprintf(stderr, "Initialization failed\n");
+        return 1;
+    }
     // Create a new application
     GtkApplication *app = gtk_application_new("com.example.GtkApplication",
                                               G_APPLICATION_DEFAULT_FLAGS);
