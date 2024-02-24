@@ -131,25 +131,39 @@ static int output_video_frame(AVFrame *frame)
 void draw_images(GtkDrawingArea *area, cairo_t *cr, int width, int height, gpointer user_data)
 {
     Frame currentFrame = arrayOfFrames[writeIndex];
+    GdkPixbuf *pixbuf = gdk_pixbuf_new_from_data(
+        currentFrame.pixels,
+        GDK_COLORSPACE_RGB,
+        FALSE,
+        8,
+        currentFrame.width,
+        currentFrame.height,
+        3*currentFrame.width,
+        NULL,
+        NULL
+    );
+    gdk_cairo_set_source_pixbuf(cr,pixbuf,0,0);
+    cairo_paint(cr);
+    g_object_unref(pixbuf);
     //Iterates through every pixel in the images array
-    for (int y = 0; y < currentFrame.height; y++)
-    {
-        for (int x = 0; x < currentFrame.width; x++)
-        {
-            //Offset for finding the colored pixels in the array based on row and column
-            int offset = (y * currentFrame.width + x) * 3;
-            unsigned char red = currentFrame.pixels[offset];       //Offset will give u red
-            unsigned char green = currentFrame.pixels[offset + 1]; //+1 for green
-            unsigned char blue = currentFrame.pixels[offset + 2];  //+2 from offset gives you blue
+    // for (int y = 0; y < currentFrame.height; y++)
+    // {
+    //     for (int x = 0; x < currentFrame.width; x++)
+    //     {
+    //         //Offset for finding the colored pixels in the array based on row and column
+    //         int offset = (y * currentFrame.width + x) * 3;
+    //         unsigned char red = currentFrame.pixels[offset];       //Offset will give u red
+    //         unsigned char green = currentFrame.pixels[offset + 1]; //+1 for green
+    //         unsigned char blue = currentFrame.pixels[offset + 2];  //+2 from offset gives you blue
 
 
-            //Set the pixel color for ppm tile
-            cairo_set_source_rgb(cr, red / 255.0, green / 255.0, blue / 255.0);
-            // Draw a rectangle representing the pixel for ppm image
-            cairo_rectangle(cr, x, y, 1, 1);
-            cairo_fill(cr);
-        }
-    }
+    //         //Set the pixel color for ppm tile
+    //         cairo_set_source_rgb(cr, red / 255.0, green / 255.0, blue / 255.0);
+    //         // Draw a rectangle representing the pixel for ppm image
+    //         cairo_rectangle(cr, x, y, 1, 1);
+    //         cairo_fill(cr);
+    //     }
+    // }
 }
 static int decode_packet(AVCodecContext *dec, const AVPacket *pkt)
 {
@@ -412,8 +426,8 @@ static void *readFunction()
 static void *writeFunction()
 {
     struct timespec ts;
-    ts.tv_sec = 100 / 1000;
-    ts.tv_nsec = (100 % 1000) * 1000000;
+    ts.tv_sec = 0;
+    ts.tv_nsec = 1000000000/frameRate;
     printf("Write Started\n");
     while (1)
     {
