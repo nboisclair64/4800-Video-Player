@@ -438,7 +438,7 @@ static void *readFunction()
     printf("Read Started\n");
     while (1)
     {   
-        
+        int status;
         pthread_mutex_lock(&mutex);
         //printf("Locked In Read\n");
         while(isFrameBufferFull())
@@ -448,21 +448,27 @@ static void *readFunction()
         }
         if(readLap==writeLap && readIndex>writeIndex){
             printf("Decoding Evem\n");
-            int status = decodeFrame(); //Need to get this to read one frame
+            status = decodeFrame(); //Need to get this to read one frame
             printf("Done Decoding\n");
         }
         else if(readLap>writeLap && readIndex<writeIndex){
             printf("Decoding Odd\n");
-            int status = decodeFrame(); //Need to get this to read one frame
+            status = decodeFrame(); //Need to get this to read one frame
             printf("Done Decoding\n");
         }
         
         pthread_cond_signal(&condition2); // Signal write function
-        //printf("Unlocked in Read\n");
+
+         //printf("Unlocked in Read\n");
         pthread_mutex_unlock(&mutex); //Unlock
 
-        
+
+        if (status < 0)
+            pthread_exit(NULL);
+
     }
+
+
     return NULL;
 }
 static void *writeFunction()
