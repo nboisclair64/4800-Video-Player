@@ -248,6 +248,8 @@ static int decode_packet(AVCodecContext *dec, const AVPacket *pkt)
             if (readIndex == MAX_BUFFER)
             {
                 printf("Done Reading\n");
+                readIndex = 90;
+                ret = output_video_frame(frame);
                 readIndex = 1;
                 readLap++;
                 return 1;
