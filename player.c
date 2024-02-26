@@ -171,22 +171,22 @@ static int output_video_frame(AVFrame *frame)
 void draw_images(GtkDrawingArea *area, cairo_t *cr, int width, int height, gpointer user_data)
 {
     Frame currentFrame = arrayOfFrames[writeIndex];
-    if (currentFrame.pixels != NULL){
-        GdkPixbuf *pixbuf = gdk_pixbuf_new_from_data(
-            currentFrame.pixels,
-            GDK_COLORSPACE_RGB,
-            FALSE,
-            8,
-            currentFrame.width,
-            currentFrame.height,
-            3*currentFrame.width,
-            NULL,
-            NULL
-        );
-        gdk_cairo_set_source_pixbuf(cr,pixbuf,0,0);
-        cairo_paint(cr);
-        g_object_unref(pixbuf);
-    } 
+   
+    GdkPixbuf *pixbuf = gdk_pixbuf_new_from_data(
+        currentFrame.pixels,
+        GDK_COLORSPACE_RGB,
+        FALSE,
+        8,
+        currentFrame.width,
+        currentFrame.height,
+        3*currentFrame.width,
+        NULL,
+        NULL
+    );
+    gdk_cairo_set_source_pixbuf(cr,pixbuf,0,0);
+    cairo_paint(cr);
+    g_object_unref(pixbuf);
+     
     //Iterates through every pixel in the images array
     // for (int y = 0; y < currentFrame.height; y++)
     // {
