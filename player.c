@@ -59,6 +59,46 @@ int readIndex=1;
 int readLap = 1;
 int writeIndex = 0;
 int writeLap=1;
+
+
+int get_video_dimensions(const char *filename, int *width, int *height) {
+    AVFormatContext *format_ctx = NULL;
+    AVCodecParameters *codec_params = NULL;
+    AVCodec *codec = NULL;
+
+    // Open the video file
+    if (avformat_open_input(&format_ctx, filename, NULL, NULL) != 0) {
+        fprintf(stderr, "Failed to open video file\n");
+        return -1;
+    }
+
+    // Retrieve stream information
+    if (avformat_find_stream_info(format_ctx, NULL) < 0) {
+        fprintf(stderr, "Failed to retrieve stream information\n");
+        avformat_close_input(&format_ctx);
+        return -1;
+    }
+
+    // Find the first video stream
+    int video_stream_index = av_find_best_stream(format_ctx, AVMEDIA_TYPE_VIDEO, -1, -1, &codec, 0);
+    if (video_stream_index < 0) {
+        fprintf(stderr, "Failed to find video stream\n");
+        avformat_close_input(&format_ctx);
+        return -1;
+    }
+
+    // Get codec parameters for the video stream
+    codec_params = format_ctx->streams[video_stream_index]->codecpar;
+
+    // Retrieve width and height from codec parameters
+    *width = codec_params->width;
+    *height = codec_params->height;
+
+    // Clean up
+    avformat_close_input(&format_ctx);
+
+    return 0;
+}
 static void playVideo()
 {
    
@@ -202,6 +242,7 @@ static int decode_packet(AVCodecContext *dec, const AVPacket *pkt)
                 //lastFrameRead = dec->frame_num;
                 printf("Done Reading\n");
                 readIndex = 1;
+                readLap++;
                 return 1;
             }
         
@@ -399,7 +440,7 @@ static void *readFunction()
     {   
         
         pthread_mutex_lock(&mutex);
-        printf("Locked In Read\n");
+        //printf("Locked In Read\n");
         while(isFrameBufferFull())
         {
             printf("Buffer full\n");
@@ -419,6 +460,7 @@ static void *readFunction()
         pthread_cond_signal(&condition2); // Signal write function
         //printf("Unlocked in Read\n");
         pthread_mutex_unlock(&mutex); //Unlock
+
         
     }
     return NULL;
@@ -475,11 +517,15 @@ activate(GtkApplication *app,
     gtk_box_append(GTK_BOX(menuBox), button2);
     gtk_box_append(GTK_BOX(menuBox), button3);
 
+
+    int width, height;
+    get_video_dimensions(src_filename, &width, &height);
+
     //Window Settings
     GtkWidget *window = gtk_application_window_new(app);
     gtk_window_set_title(GTK_WINDOW(window), "Picture Editor");
 
-    gtk_widget_set_size_request(darea, 400, 400);
+    gtk_widget_set_size_request(darea, width, height);
     gtk_box_append(GTK_BOX(box), darea);
     gtk_box_append(GTK_BOX(box), menuBox);
     gtk_window_set_child(GTK_WINDOW(window), box);
