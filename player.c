@@ -59,13 +59,12 @@ int readIndex=1;
 int readLap = 1;
 int writeIndex = 0;
 int writeLap=1;
+GtkWidget *button4;
 int videoStatus = 0;
-
-
 int get_video_dimensions(const char *filename, int *width, int *height) {
     AVFormatContext *format_ctx = NULL;
     AVCodecParameters *codec_params = NULL;
-    AVCodec *codec = NULL;
+    const AVCodec *codec = NULL;
 
     // Open the video file
     if (avformat_open_input(&format_ctx, filename, NULL, NULL) != 0) {
@@ -100,14 +99,37 @@ int get_video_dimensions(const char *filename, int *width, int *height) {
 
     return 0;
 }
+//Function for capturing the current frame as a png using
+//pixel buffer from the current frame
+static void captureFrame(){
+    //Retrieves the current frame
+    Frame currentFrame = arrayOfFrames[writeIndex];
+    //Creates pixel buffer from current frame
+    GdkPixbuf *pixbuf = gdk_pixbuf_new_from_data(currentFrame.pixels,GDK_COLORSPACE_RGB,FALSE,8,currentFrame.width,currentFrame.height,3 * currentFrame.width,NULL,NULL);
+    //Saves the pixel buffer from the current frame to captured_frame.png
+    gdk_pixbuf_save(pixbuf, "captured_frame.png", "png", NULL, NULL);
+}
+//Function for playing the video
+//It sets the playing flag to 0 which indiciates for the threads
+//to continue their operations
 static void playVideo()
 {
    videoStatus = 0;
+   //Sets Capture Frame button to inactive
+   gtk_widget_set_sensitive(button4, FALSE);
 }
+//Function for pausing the video
+//It sets the playing flag to 1 which indiciates for the threads
+//to stop their operations
 static void pauseVideo()
 {
     videoStatus = 1;
+    //Sets Capture Frame button to active
+    gtk_widget_set_sensitive(button4, TRUE);
 }
+//Iterates through a frame pixel by pixel saving each of its R,G,B
+//Components into its pixels array to be stored in its struct
+//This array is then added to its Frame struct and put into the array of frames
 static int output_video_frame(AVFrame *frame)
 {
     if (frame->width != width || frame->height != height ||
@@ -139,7 +161,7 @@ static int output_video_frame(AVFrame *frame)
         {
             //Stream #0 tells us it has color format YUV420p which must be converted to RGB
             //For YUV color format U and V are often subsampled to save data
-            //Common ratio for YUV is 4:2:2
+            //Common ratio for YUV is 4:2:0
             int y_index = y * video_dst_linesize[0] + x;
             //Subsampling ratio describes why we must do y/2 and x/2 since the data would be in half
             //the bytes as the Y data
@@ -156,68 +178,53 @@ static int output_video_frame(AVFrame *frame)
             int R = Y + 1.402 * (V - 128);
             int G = Y - 0.344136 * (U - 128) - 0.714136 * (V - 128);
             int B = Y + 1.772 * (U - 128);
-
+            //Create position to insert these 3 values
             int offset = (y * width + x) * 3;
+            //Insert the values at the appropriate posistions
             pixels[offset] = R;
             pixels[offset+1] = G;
             pixels[offset + 2] = B;
 
         }
     }
+    //Create Frame struct object based on width,height,max value for color, the pixel array and if its active
     Frame currentFrame = {frame->width,frame->height,255,pixels,1};
-    printf("Read Index: %d\n",readIndex-1);
+    //Put frame into the array
+    //Puts it at readIndex-1 to allow circular buffer to ensure it is always ahead of write
     arrayOfFrames[readIndex-1] = currentFrame;
     return 0;
 }
+//Function for drawing the current frame the write thread has
+//to the drawing area using a pixel buffer since it is more efficient
+//than drawing each individual pixel as a rectangle
 void draw_images(GtkDrawingArea *area, cairo_t *cr, int width, int height, gpointer user_data)
 {
+    //Retrieve current frame
     Frame currentFrame = arrayOfFrames[writeIndex];
-    GdkPixbuf *pixbuf = gdk_pixbuf_new_from_data(
-        currentFrame.pixels,
-        GDK_COLORSPACE_RGB,
-        FALSE,
-        8,
-        currentFrame.width,
-        currentFrame.height,
-        3*currentFrame.width,
-        NULL,
-        NULL
-    );
+    //Create the pixel buffer for current frame
+    GdkPixbuf *pixbuf = gdk_pixbuf_new_from_data(currentFrame.pixels,GDK_COLORSPACE_RGB,FALSE,8,currentFrame.width,currentFrame.height,3*currentFrame.width,NULL,NULL);
+    //set cairo source as the pixel buffer
     gdk_cairo_set_source_pixbuf(cr,pixbuf,0,0);
+    //paint the pixel buffer on the drawing area
     cairo_paint(cr);
+    //Release the pixel buffer from memory to save resources
     g_object_unref(pixbuf);
+    //Set frame to empty to alert the code its index is "available"
     arrayOfFrames[writeIndex].isEmpty = 0;
+    //Increment index for writing thread
     writeIndex++;
+    //If writing thread has reached end of array then increment
+    // Its lap and also reset write index to start of array
     if (writeIndex == MAX_BUFFER)
     {
         writeLap++;
         writeIndex = 0;
     }
-    //Iterates through every pixel in the images array
-    // for (int y = 0; y < currentFrame.height; y++)
-    // {
-    //     for (int x = 0; x < currentFrame.width; x++)
-    //     {
-    //         //Offset for finding the colored pixels in the array based on row and column
-    //         int offset = (y * currentFrame.width + x) * 3;
-    //         unsigned char red = currentFrame.pixels[offset];       //Offset will give u red
-    //         unsigned char green = currentFrame.pixels[offset + 1]; //+1 for green
-    //         unsigned char blue = currentFrame.pixels[offset + 2];  //+2 from offset gives you blue
-
-
-    //         //Set the pixel color for ppm tile
-    //         cairo_set_source_rgb(cr, red / 255.0, green / 255.0, blue / 255.0);
-    //         // Draw a rectangle representing the pixel for ppm image
-    //         cairo_rectangle(cr, x, y, 1, 1);
-    //         cairo_fill(cr);
-    //     }
-    // }
 }
 static int decode_packet(AVCodecContext *dec, const AVPacket *pkt)
 {
 
     int ret = 0;
-
     // submit the packet to the decoder
     ret = avcodec_send_packet(dec, pkt);
     if (ret < 0)
@@ -244,20 +251,20 @@ static int decode_packet(AVCodecContext *dec, const AVPacket *pkt)
 
         // write the frame data to output file only if its the one specified
             ret = output_video_frame(frame);
+            //After reading a frame increment the reading threads
+            //Position in the array
             readIndex++;
+            //If read Index has reached end of array then fill in the last space since
+            //Code is designed to put frame in readIndex-1
+            //Output that frame and then reset Index to 1 and increment lap
             if (readIndex == MAX_BUFFER)
             {
-                printf("Done Reading\n");
                 readIndex = 90;
                 ret = output_video_frame(frame);
                 readIndex = 1;
                 readLap++;
                 return 1;
             }
-        
-            
-        
-
         av_frame_unref(frame);
         if (ret < 0)
             return ret;
@@ -323,7 +330,7 @@ static int open_codec_context(int *stream_idx,
 
     return 0;
 }
-int initialize()
+int initializeStreamVariables()
 {
     int ret = 0;
     // Open input file and allocate format context
@@ -358,7 +365,7 @@ int initialize()
     else{
         video_stream = fmt_ctx->streams[video_stream_idx];
 
-        /* allocate image where the decoded image will be put */
+        //Retrieve the nessecary information regarding the video
         width = video_dec_ctx->width;
         height = video_dec_ctx->height;
         pix_fmt = video_dec_ctx->pix_fmt;
@@ -406,7 +413,6 @@ int decodeFrame()
     if (pkt->stream_index == video_stream_idx)
     {
         // Decode the packet
-        printf("Decoding Pkt\n");
         ret = decode_packet(video_dec_ctx, pkt);
         if (ret < 0)
         {
@@ -422,6 +428,7 @@ int decodeFrame()
 }
 static bool isFrameBufferFull()
 {
+    //Loop through every frame and check if every one is "unavailable"
     for (int i = 0; i < MAX_BUFFER; i++)
     {
         if (arrayOfFrames[i].isEmpty == 0)
@@ -433,6 +440,7 @@ static bool isFrameBufferFull()
 }
 static bool isFrameBufferEmpty()
 {
+    //Loop through every frame and check if every one is "available"
     for (int i = 0; i < MAX_BUFFER; i++)
     {
         if (arrayOfFrames[i].isEmpty == 1)
@@ -442,38 +450,40 @@ static bool isFrameBufferEmpty()
     }
     return TRUE;
 }
+//Thread for reading frames
 static void *readFunction()
 {
-    printf("Read Started\n");
     while (1)
     {   
+        //If video is not paused then perform
+        //reading threads actions
         if(videoStatus==0){
             int status;
             pthread_mutex_lock(&mutex);
-            //printf("Locked In Read\n");
+            //If buffer is full then read should wait for write to write some of the frames
+            //to the screen
             while (isFrameBufferFull())
             {
-                printf("Buffer full\n");
                 pthread_cond_wait(&condition2, &mutex); // Wait for condition to be empty
             }
+            //If read is on the same lap as the write thread then only read a frame
+            //if it is ahead of the write index
             if (readLap == writeLap && readIndex > writeIndex)
             {
-                printf("Decoding Evem\n");
-                status = decodeFrame(); //Need to get this to read one frame
-                printf("Done Decoding\n");
+                status = decodeFrame();
             }
+            //if read is ahead of write in the circular buffer then it must make sure that its index is less than
+            //write to avoid overwriting frames that havent been displayed
             else if (readLap > writeLap && readIndex < writeIndex)
             {
-                printf("Decoding Odd\n");
-                status = decodeFrame(); //Need to get this to read one frame
-                printf("Done Decoding\n");
+                status = decodeFrame(); 
             }
 
-            pthread_cond_signal(&condition2); // Signal write function
+            pthread_cond_signal(&condition2); // Signal write function to start writing to screen
 
-            //printf("Unlocked in Read\n");
             pthread_mutex_unlock(&mutex); //Unlock
 
+            //Indiciating video has completed
             if (status < 0)
                 pthread_exit(NULL);
         }
@@ -486,30 +496,35 @@ static void *readFunction()
 }
 static void *writeFunction()
 {
-    struct timespec ts;
-    ts.tv_sec = 0;
-    ts.tv_nsec = 1000000000/frameRate;
-    printf("Write Started\n");
+    //Taking advantage of the nano sleep function
+    //Allows you to indicate the seconds and nanoseconds to sleep
+    struct timespec timeToSleep;
+    //Sleep for 0 seconds
+    timeToSleep.tv_sec = 0;
+    //Sleep for 1000000000/Frame rate since 1000000000 is how many nanoseconds are in a second
+    //And by dividing it by frame rate u will achieve the number that
+    //this function must be run every second to achieve the desired framerate
+    timeToSleep.tv_nsec = 1000000000/frameRate;
     while (1)
     {
+        //If video is in playing state
+        //run the code
         if(videoStatus == 0){
-            printf("Writing Loop\n");
-            //sleep(1);
-            nanosleep(&ts, &ts);
+            //Sleep for the time alloted
+            nanosleep(&timeToSleep, &timeToSleep);
+            //Lock the mutex
             pthread_mutex_lock(&mutex);
             //If full wait
             if (isFrameBufferEmpty())
             {
-                printf("Buffer Empty\n");
                 pthread_cond_wait(&condition2, &mutex);
             }
-            //pthread_cond_wait(&condition, &mutex); // Wait for signal from read function
             //Write Frame
-            printf("Drawing frame: %d\n", writeIndex);
             gtk_drawing_area_set_draw_func(GTK_DRAWING_AREA(darea), draw_images, NULL, NULL);
 
             //Signal Read
-            pthread_cond_signal(&condition2); //Signal Read
+            pthread_cond_signal(&condition2);
+            //Unlock
             pthread_mutex_unlock(&mutex);
         }
         
@@ -530,10 +545,13 @@ activate(GtkApplication *app,
     g_signal_connect_swapped(button2, "clicked", G_CALLBACK(pauseVideo), NULL);
     GtkWidget *button3 = gtk_button_new_with_label("Play");
     g_signal_connect_swapped(button3, "clicked", G_CALLBACK(playVideo), NULL);
+    button4 = gtk_button_new_with_label("Capture Frame");
+    g_signal_connect_swapped(button4, "clicked", G_CALLBACK(captureFrame), NULL);
+    gtk_widget_set_sensitive(button4, FALSE);
 
     gtk_box_append(GTK_BOX(menuBox), button2);
     gtk_box_append(GTK_BOX(menuBox), button3);
-
+    gtk_box_append(GTK_BOX(menuBox), button4);
 
     int width, height;
     get_video_dimensions(src_filename, &width, &height);
@@ -552,10 +570,12 @@ activate(GtkApplication *app,
     {
         printf("Error creating write thread\n");
     }
-    pthread_create(&readThread, NULL, readFunction, NULL);
+    if (pthread_create(&readThread, NULL, readFunction, NULL) != 0)
+    {
+        printf("Error creating write thread\n");
+    }
 
-    
-    gtk_window_present(GTK_WINDOW(window));
+        gtk_window_present(GTK_WINDOW(window));
 }
 int main(int argc, char *argv[])
 {
@@ -574,8 +594,8 @@ int main(int argc, char *argv[])
     frameRate = atoi(argv[2]);
     //Resets argc to ensure GTK does not throw any errors
     argc = 1;
-    // Initialize format context, open input file, etc.
-    if (initialize() < 0)
+    // Initialize the nessecary stream variables 
+    if (initializeStreamVariables() < 0)
     {
         fprintf(stderr, "Initialization failed\n");
         return 1;
