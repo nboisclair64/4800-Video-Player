@@ -53,6 +53,11 @@ static int video_frame_count = 0;
 static int audio_frame_count = 0;
 static int frameRate;
 
+static int state = 1;
+
+GtkWidget *button;
+GtkWidget *image;
+
 Frame arrayOfFrames[MAX_BUFFER]; //Optimize array, potentially clear already shown frames
 int lastFrameRead = 0;
 int readIndex=1;
@@ -61,12 +66,14 @@ int writeIndex = 0;
 int writeLap=1;
 GtkWidget *button4;
 int videoStatus = 0;
+
+//Function to recieve the width and height of the current video for the purpose of dynamically setting the window size for the video passed to the program
 int get_video_dimensions(const char *filename, int *width, int *height) {
     AVFormatContext *format_ctx = NULL;
     AVCodecParameters *codec_params = NULL;
     const AVCodec *codec = NULL;
 
-    // Open the video file
+    // Open Video File 
     if (avformat_open_input(&format_ctx, filename, NULL, NULL) != 0) {
         fprintf(stderr, "Failed to open video file\n");
         return -1;
@@ -126,6 +133,25 @@ static void pauseVideo()
     videoStatus = 1;
     //Sets Capture Frame button to active
     gtk_widget_set_sensitive(button4, TRUE);
+}
+//Toggles between the play and pause functions, and their images
+static void togglePlayPause(){
+    if (state == 0){
+        GtkWidget *image2 = gtk_image_new_from_file("pause.png");
+        gtk_button_set_child(GTK_BUTTON(button), image2);
+        gtk_image_set_pixel_size(GTK_IMAGE(image2), 32); // Set the pixel size of the image (e.g., 64 pixels)
+
+        playVideo();
+        state = 1;
+    } else {
+
+        GtkWidget *image3 = gtk_image_new_from_file("play.png");
+        gtk_button_set_child(GTK_BUTTON(button), image3);
+        gtk_image_set_pixel_size(GTK_IMAGE(image3), 32); // Set the pixel size of the image (e.g., 64 pixels)
+
+        pauseVideo();
+        state =0;
+    }
 }
 //Iterates through a frame pixel by pixel saving each of its R,G,B
 //Components into its pixels array to be stored in its struct
@@ -271,8 +297,6 @@ static int decode_packet(AVCodecContext *dec, const AVPacket *pkt)
     }
     return 0;
 }
-
-
 static int open_codec_context(int *stream_idx,
                               AVCodecContext **dec_ctx, AVFormatContext *fmt_ctx, enum AVMediaType type)
 {
@@ -396,7 +420,6 @@ int initializeStreamVariables()
 
     return 0;
 }
-
 int decodeFrame()
 {
     int ret;
@@ -538,27 +561,32 @@ activate(GtkApplication *app,
 {
     darea = gtk_drawing_area_new();
 
-    GtkWidget *box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
-    GtkWidget *menuBox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
-
-    GtkWidget *button2 = gtk_button_new_with_label("Pause");
-    g_signal_connect_swapped(button2, "clicked", G_CALLBACK(pauseVideo), NULL);
-    GtkWidget *button3 = gtk_button_new_with_label("Play");
-    g_signal_connect_swapped(button3, "clicked", G_CALLBACK(playVideo), NULL);
-    button4 = gtk_button_new_with_label("Capture Frame");
-    g_signal_connect_swapped(button4, "clicked", G_CALLBACK(captureFrame), NULL);
-    gtk_widget_set_sensitive(button4, FALSE);
-
-    gtk_box_append(GTK_BOX(menuBox), button2);
-    gtk_box_append(GTK_BOX(menuBox), button3);
-    gtk_box_append(GTK_BOX(menuBox), button4);
 
     int width, height;
     get_video_dimensions(src_filename, &width, &height);
 
+    GtkWidget *box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+    GtkWidget *menuBox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
+    gtk_widget_set_halign(menuBox, GTK_ALIGN_CENTER);
+        //gtk_widget_set_size_request(menuBox, width, 32);
+
+
+    button = gtk_button_new();
+    image = gtk_image_new_from_file("pause.png");
+    gtk_image_set_pixel_size(GTK_IMAGE(image), 32); 
+    gtk_button_set_child(GTK_BUTTON(button), image);
+    g_signal_connect_swapped(button, "clicked", G_CALLBACK(togglePlayPause), NULL);
+
+    button4 = gtk_button_new_with_label("Capture Frame");
+    g_signal_connect_swapped(button4, "clicked", G_CALLBACK(captureFrame), NULL);
+    gtk_widget_set_sensitive(button4, FALSE);
+
+    gtk_box_append(GTK_BOX(menuBox), button);
+    gtk_box_append(GTK_BOX(menuBox), button4);
+
     //Window Settings
     GtkWidget *window = gtk_application_window_new(app);
-    gtk_window_set_title(GTK_WINDOW(window), "Picture Editor");
+    gtk_window_set_title(GTK_WINDOW(window), "Media Player");
 
     gtk_widget_set_size_request(darea, width, height);
     gtk_box_append(GTK_BOX(box), darea);
