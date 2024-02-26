@@ -59,6 +59,7 @@ int readIndex=1;
 int readLap = 1;
 int writeIndex = 0;
 int writeLap=1;
+int videoStatus = 0;
 
 
 int get_video_dimensions(const char *filename, int *width, int *height) {
@@ -101,11 +102,11 @@ int get_video_dimensions(const char *filename, int *width, int *height) {
 }
 static void playVideo()
 {
-   
+   videoStatus = 0;
 }
 static void pauseVideo()
 {
-    
+    videoStatus = 1;
 }
 static int output_video_frame(AVFrame *frame)
 {
@@ -171,7 +172,6 @@ static int output_video_frame(AVFrame *frame)
 void draw_images(GtkDrawingArea *area, cairo_t *cr, int width, int height, gpointer user_data)
 {
     Frame currentFrame = arrayOfFrames[writeIndex];
-   
     GdkPixbuf *pixbuf = gdk_pixbuf_new_from_data(
         currentFrame.pixels,
         GDK_COLORSPACE_RGB,
@@ -186,7 +186,13 @@ void draw_images(GtkDrawingArea *area, cairo_t *cr, int width, int height, gpoin
     gdk_cairo_set_source_pixbuf(cr,pixbuf,0,0);
     cairo_paint(cr);
     g_object_unref(pixbuf);
-     
+    arrayOfFrames[writeIndex].isEmpty = 0;
+    writeIndex++;
+    if (writeIndex == MAX_BUFFER)
+    {
+        writeLap++;
+        writeIndex = 0;
+    }
     //Iterates through every pixel in the images array
     // for (int y = 0; y < currentFrame.height; y++)
     // {
@@ -241,8 +247,9 @@ static int decode_packet(AVCodecContext *dec, const AVPacket *pkt)
             readIndex++;
             if (readIndex == MAX_BUFFER)
             {
-                //lastFrameRead = dec->frame_num;
                 printf("Done Reading\n");
+                readIndex = 90;
+                ret = output_video_frame(frame);
                 readIndex = 1;
                 readLap++;
                 return 1;
@@ -440,33 +447,37 @@ static void *readFunction()
     printf("Read Started\n");
     while (1)
     {   
-        int status;
-        pthread_mutex_lock(&mutex);
-        //printf("Locked In Read\n");
-        while(isFrameBufferFull())
-        {
-            printf("Buffer full\n");
-            pthread_cond_wait(&condition2, &mutex); // Wait for condition to be empty
-        }
-        if(readLap==writeLap && readIndex>writeIndex){
-            printf("Decoding Evem\n");
-            status = decodeFrame(); //Need to get this to read one frame
-            printf("Done Decoding\n");
-        }
-        else if(readLap>writeLap && readIndex<writeIndex){
-            printf("Decoding Odd\n");
-            status = decodeFrame(); //Need to get this to read one frame
-            printf("Done Decoding\n");
+        if(videoStatus==0){
+            int status;
+            pthread_mutex_lock(&mutex);
+            //printf("Locked In Read\n");
+            while (isFrameBufferFull())
+            {
+                printf("Buffer full\n");
+                pthread_cond_wait(&condition2, &mutex); // Wait for condition to be empty
+            }
+            if (readLap == writeLap && readIndex > writeIndex)
+            {
+                printf("Decoding Evem\n");
+                status = decodeFrame(); //Need to get this to read one frame
+                printf("Done Decoding\n");
+            }
+            else if (readLap > writeLap && readIndex < writeIndex)
+            {
+                printf("Decoding Odd\n");
+                status = decodeFrame(); //Need to get this to read one frame
+                printf("Done Decoding\n");
+            }
+
+            pthread_cond_signal(&condition2); // Signal write function
+
+            //printf("Unlocked in Read\n");
+            pthread_mutex_unlock(&mutex); //Unlock
+
+            if (status < 0)
+                pthread_exit(NULL);
         }
         
-        pthread_cond_signal(&condition2); // Signal write function
-
-         //printf("Unlocked in Read\n");
-        pthread_mutex_unlock(&mutex); //Unlock
-
-
-        if (status < 0)
-            pthread_exit(NULL);
 
     }
 
@@ -481,41 +492,27 @@ static void *writeFunction()
     printf("Write Started\n");
     while (1)
     {
-        printf("Writing Loop\n");
-        //sleep(1);
-        nanosleep(&ts, &ts);
-        pthread_mutex_lock(&mutex);
-        //If full wait
+        if(videoStatus == 0){
+            printf("Writing Loop\n");
+            //sleep(1);
+            nanosleep(&ts, &ts);
+            pthread_mutex_lock(&mutex);
+            //If full wait
+            if (isFrameBufferEmpty())
+            {
+                printf("Buffer Empty\n");
+                pthread_cond_wait(&condition2, &mutex);
+            }
+            //pthread_cond_wait(&condition, &mutex); // Wait for signal from read function
+            //Write Frame
+            printf("Drawing frame: %d\n", writeIndex);
+            gtk_drawing_area_set_draw_func(GTK_DRAWING_AREA(darea), draw_images, NULL, NULL);
 
-        //changes by matt
-        //************************************************************************************************
-        while(isFrameBufferFull())
-        {
-            printf("Buffer full\n");
-            pthread_cond_wait(&condition2, &mutex); // Wait for condition to be empty
+            //Signal Read
+            pthread_cond_signal(&condition2); //Signal Read
+            pthread_mutex_unlock(&mutex);
         }
-        //*************************************************************************************************
-
-        if (isFrameBufferEmpty())
-        {
-            printf("Buffer Empty\n");
-            pthread_cond_wait(&condition2, &mutex);
-        }
-
-
-        //pthread_cond_wait(&condition, &mutex); // Wait for signal from read function
-        //Write Frame
-        printf("Drawing frame: %d\n",writeIndex);
-        gtk_drawing_area_set_draw_func(GTK_DRAWING_AREA(darea), draw_images, NULL, NULL);
-        arrayOfFrames[writeIndex].isEmpty = 0;
-        writeIndex++;
-        if(writeIndex==MAX_BUFFER){
-            writeLap++;
-            writeIndex=0;
-        }
-        //Signal Read
-        pthread_cond_signal(&condition2); //Signal Read
-        pthread_mutex_unlock(&mutex);
+        
     }
     return NULL;
 }
