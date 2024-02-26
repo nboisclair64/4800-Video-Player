@@ -67,6 +67,7 @@ int writeLap=1;
 GtkWidget *button4;
 int videoStatus = 0;
 
+
 //Function to recieve the width and height of the current video for the purpose of dynamically setting the window size for the video passed to the program
 int get_video_dimensions(const char *filename, int *width, int *height) {
     AVFormatContext *format_ctx = NULL;
@@ -603,7 +604,8 @@ activate(GtkApplication *app,
         printf("Error creating write thread\n");
     }
 
-        gtk_window_present(GTK_WINDOW(window));
+    gtk_window_present(GTK_WINDOW(window));
+
 }
 int main(int argc, char *argv[])
 {
